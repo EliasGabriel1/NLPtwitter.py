@@ -1,0 +1,155 @@
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+import toolz as fp
+import seaborn as sns
+from IPython.core.interactiveshell import InteractiveShell
+import warnings
+import nltk
+from nltk.tokenize import TweetTokenizer as nltkk
+from nltk.corpus import stopwords as stp
+import statsmodels as ECDF
+from statsmodels.distributions.empirical_distribution import ECDF
+import fklearn as log_learner_time; import fklearn as build_pipeline; import fklearn as nlp_logistic_classification_learner ; #import fklearn.metrics.pd_extractors as *
+from fklearn.validation.evaluators import auc_evaluator, logloss_evaluator, precision_evaluator, recall_evaluator, combined_evaluators, temporal_split_evaluator
+import sklearn.metrics as precision_recall_curve
+from fklearn.training.classification import nlp_logistic_classification_learner #repositorio de treinamento e classificação da nlp
+from fklearn.training.pipeline import build_pipeline
+from fklearn.training.utils import log_learner_time
+
+
+sns.set(); stp = set(stp.words('portuguese')) #definindo as stop words em portugues
+df = pd.read_csv("Tweets_Mg.csv", encoding='utf-8') #chamando a csv
+
+rs=pd.read_csv("Tweets_Mg.csv", encoding='utf-8', usecols=["Retweet Count"]) #chamando especificamente uma coluna e pondo como uma variavel #se fosse necessario par amostrar o separdor, era apenas por sep=; (separadpr)
+
+
+
+#contz=[0] #Não sei porque criei isso, era uma variavel e virou tupla?
+#contum=1 #dois contadores para contar qual o desvio padrão do tweet postivo e negativo
+
+print(rs.head()) #lendo cabeçario(5 primeiras linhas) apenas da coluna Retweet Count
+print(df.head())#lendo cabeçario(5 primeiras liinhas) de toda a Data Frame
+print(df.shape) #demonstra a dimensão, a forma da csv em quantidade de colunas por linhas,(8199, 26)
+
+print(np.random.seed(42))
+
+df = (df
+      .rename(columns={'Created At': 'Data_de_publicacao',
+                       'Text' : 'Tweet',
+                       'Retweet Count' : 'Numero_de_Retweets',
+                        "Username" : "nome_de_usuario",
+                       'Classificacao' : 'sentimento'})
+      .loc[:,['Data_de_publicacao','Tweet','Numero_de_Retweets','nome_de_usuario', 'sentimento']]) #Reescrevendo apenas as colunas que vou usar
+
+#print(df.loc[1],"esta certo isso?") #Para selecionar pelo index ou rótulo
+
+print(df.describe) #descreve toda data frame as 30 primeiras linhas e as 30 ultimas
+print(df.shape)#mostrar a dimensão da DataFrame
+print(df['nome_de_usuario'].value_counts().head(10))# Mostra os 10 nomes que mais aparece na Data Frame
+
+df['Data_de_publicacao']=pd.to_datetime(df['Data_de_publicacao'], infer_datetime_format=True) #definir a data em escrito
+df["sentimento"] = df["sentimento"].replace({"Negativo" : 0, "Neutro": np.random.choice([0,1]), "Positivo":1}) #classificando os numeros positivos como 1 e numeros negativos como 0
+# e numeros neutros como aleatorios, não será algo preciso mas é algo que será necessario para analisar de forma facil
+
+#contz[0]=df["sentimento"] #como fazer essa coluna ["sentimento"] virar uma tupla
+print(df["sentimento"].unique(),"Acho que é isso ") #verificar a informação usando um método que lista os valores únicos numa coluna
+
+print(df.head(10)) #df.head para mostrar as 5 primeiras linhas das primeiras colunas
+print(df.tail(10))#df.tail para mostrar as 5 ultimas linhas das colunas
+print(df.isna().sum()) #isna é pra indicar o valor de cada coluna e qual a dimensão da Data Frame
+
+#df[df["sentimento"] ==1 ] #Em teoria é pra isso dar certo
+#df [(df["sentimento"] ==1) & (df["nome_de_usuario"] == "i5gornascimento")] # é pra isso tambem dar certo e não alterar a data frame
+
+#print('Essa tabela esta demonsntrando a quantidade de Tweets que pessoas especificas postaram \n',df['nome_de_usuario'].value_counts().plot.bar())
+
+print(df['nome_de_usuario'].value_counts().plot.bar())
+
+
+
+''''sns.countplot(df['nome_de_usuario'])
+sns.countplot(df["sentimento"].value_counts())
+plt.ylabel=("cafe")'''''
+
+df['nome_de_usuario'].value_counts().head(5).plot()
+plt.title('Procedencia dos Tweets') #adicionando o título
+plt.xlabel('Quantidade')
+
+plt.show() #mostra o grafico feito no matplotlib nas IDE's do Python
+
+df["sentimento"].value_counts().plot(); #contar quanto do valor da homogeneidade da coluna sentimento, de acordo com a contagem binaria
+#print(df["sentimento"].value_counts().plot.barh(normalize=True)); normalize= True passa a ser em porcentagem e não quantidade
+plt.show()
+
+tweet_words = nltk.tokenize.word_tokenize((df["Tweet"].drop_duplicates().str.lower().str.cat(sep=" "))) #separem as palavras
+tweet_words=([palavra for palavra in tweet_words if palavra not in stp]) #tirando todas stop words presentes na lista
+word_dist = fp.pipe(fp.keyfilter(lambda x: len(x) > 3, nltk.FreqDist(tweet_words)),#apenas palavras com mais de 3 caracteres #lambda deixa as colunas com apenas 3 caracteres
+                    # podendo ser de outro example: def truncar(sentimento): return sentimento[>:3] df["sentimento"].apply(truncar)
+                    nltk.probability.FreqDist)
+
+fig, ax = plt.subplots(figsize=(10,7)) #10,7 é a largura da imagem
+
+(pd.DataFrame(word_dist.most_common(25)[::-1],
+              columns=['word', 'frequency'])
+    .plot.barh(x='word', y="frequency", ax=ax));
+
+sns.pointplot(data=(df
+                        .assign(publication_date=df["Data_de_publicacao"].dt.strftime("%Y-%m-%d"))
+                        .groupby(["Data_de_publicacao","sentimento"])["Tweet"] #Agrupar os dados se baseando no criterito de sentimento 0,1
+                        .count()
+                        .reset_index()
+                        .rename(columns={"Tweet":"numero_de_retweets"})),
+              x="Data_de_publicacao",
+              y="numero_de_retweets",
+              hue ='sentimento',
+              ax=ax)
+
+plt.show() #mostra o grafico feito no matplotlib nas IDE's do Python
+print("O array é",plt.xticks(rotation=45))
+plt.xticks(rotation=45);
+
+fig, ax = plt.subplots(nrows=1, ncols=2, figsize=(17, 7)) #matplotlib
+
+(df
+    .groupby("nome_de_usuario")
+    .agg({"Tweet":"count"})
+    .head(25).plot.hist(ax=ax[0], bins=15))
+plt.show()
+(df
+        .groupby("nome_de_usuario")
+        .agg({"Numero_de_Retweets":"sum"})
+        .head(25).plot.hist(ax=ax[1], bins=15,color="r"));
+
+plt.show()
+
+
+#from statsmodels.distributions.empirical_distribution import ECDF #LINHA DESNECESSARIA
+fig, ax = plt.subplots(nrows=1, ncols=2, figsize=(17,7))
+
+tweet_count = (df
+              .groupby("nome_de_usuario")
+              .agg({"Tweet": "count"})["Tweet"].sort_values().values)
+retweet_count=(df["Numero_de_Retweets"].sort_values().values)
+
+tweet_count_ecdf , retweet_count_ecdf = (map(ECDF, [tweet_count, retweet_count]))
+ax[0].plot(tweet_count,tweet_count_ecdf(tweet_count),color="b")
+ax[1].plot(retweet_count,retweet_count_ecdf(retweet_count),color="r")
+ax[0].legend(labels=["Tweet count ECDF"],loc=4)
+ax[0].get_legend().legendHandles[0].set_color("b")
+ax[1].legend(labels=["Retweet count ECDF"], loc=4)
+ax[1].get_legend().legendHandles[0].set_color("r");
+
+plt.show()
+#AQUI COMEÇA O CHORO
+
+def training_pipeline(text_cols, target_column, vectorizer_params, logistic_params):
+    return log_learner_time(
+        build_pipeline(
+            nlp_logistic_classification_learner(
+                text_feature_cols=text_cols,
+                target=target_column,
+                vectorizer_params=vectorizer_params,
+                logistic_params=logistic_params
+            )
+        ), "tweet_sentiment_analysis")
